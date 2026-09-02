@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Valorant Rank Overlay</title>
+<style>
+  :root {
+    --bg-1: #050b14;
+    --bg-2: #0e1e33;
+    --accent: #4fc3f7;
+    --accent-strong: #8fe6ff;
+    --accent-dim: #1b3a55;
+    --text-primary: #eaf6ff;
+    --text-muted: #6e93b3;
+    --win: #3ddc84;
+    --loss: #ff5c6c;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    overflow: hidden;
+    display: inline-block;
+  }
+
+  #panel {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    width: fit-content;
+    background: linear-gradient(135deg, var(--bg-2) 0%, var(--bg-1) 100%);
+    border: 2px solid var(--accent);
+    border-radius: 16px;
+    padding: 16px 26px 16px 20px;
+    box-shadow: 0 0 22px rgba(79, 195, 247, 0.35), 0 8px 28px rgba(0, 0, 0, 0.45);
+  }
+
+  #icon-zone {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 18px;
+    padding-right: 18px;
+    border-right: 1px solid rgba(79, 195, 247, 0.18);
+  }
+
+  #icon-glow {
+    position: absolute;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(79, 195, 247, 0.35) 0%, rgba(79, 195, 247, 0) 70%);
+  }
+
+  #rank-icon {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    filter: drop-shadow(0 0 6px rgba(79, 195, 247, 0.5));
+  }
+
+  #text-zone {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  #rank-name {
+    font-weight: 700;
+    font-size: 21px;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  #rr-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    line-height: 1;
+  }
+
+  #rr-value {
+    font-weight: 700;
+    font-size: 19px;
+    color: var(--accent);
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+  }
+
+  #rr-value.flash-win {
+    color: var(--win);
+    text-shadow: 0 0 10px rgba(61, 220, 132, 0.7);
+  }
+
+  #rr-value.flash-loss {
+    color: var(--loss);
+    text-shadow: 0 0 10px rgba(255, 92, 108, 0.7);
+  }
+
+  .rr-suffix {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .row-divider {
+    width: 1px;
+    height: 12px;
+    background: rgba(79, 195, 247, 0.25);
+  }
+
+  #wl {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  #wl .num {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  #last-match-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(79, 195, 247, 0.12);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  #last-match-glyph {
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  #last-match-delta {
+    font-weight: 600;
+  }
+
+  #last-match-delta.win { color: var(--win); }
+  #last-match-delta.loss { color: var(--loss); }
+  #last-match-delta.neutral { color: var(--text-muted); }
+
+  #last-match-glyph.win { color: var(--win); }
+  #last-match-glyph.loss { color: var(--loss); }
+  #last-match-glyph.neutral { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <div id="icon-zone">
+    <div id="icon-glow"></div>
+    <img id="rank-icon" src="" alt="rank icon">
+  </div>
+  <div id="text-zone">
+    <div id="rank-name">Loading</div>
+    <div id="rr-row">
+      <span id="rr-value">0</span><span class="rr-suffix">RR</span>
+      <span class="row-divider"></span>
+      <span id="wl"><span class="num" id="wl-wins">0</span>W <span class="num" id="wl-losses">0</span>L</span>
+    </div>
+    <div id="last-match-row">
+      <span id="last-match-glyph" class="neutral">—</span>
+      <span>Last match</span>
+      <span id="last-match-delta" class="neutral">--</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — fill these in
+   ============================================================ */
+const API_KEY      = "HDEV-139a0761-4e51-443f-98de-a54f9ee4753a";
+const REGION       = "na";
+const RIOT_NAME    = "br1an";
+const RIOT_TAG     = "0820";
+const POLL_SECONDS = 30;
+
+/* ============================================================
+   Logic
+   ============================================================ */
+const BASE = "https://api.henrikdev.xyz";
+const PLATFORM = "pc";
+const headers = { "Authorization": API_KEY };
+
+let wins = 0;
+let losses = 0;
+let lastSeenMatchId = null;
+let sessionStarted = false;
+let tierIconMap = null;
+let lastRenderedRR = null;
+
+async function loadTierIcons() {
+  if (tierIconMap) return tierIconMap;
+  const res = await fetch("https://valorant-api.com/v1/competitivetiers");
+  const json = await res.json();
+  const latestEpisode = json.data[json.data.length - 1];
+  tierIconMap = {};
+  for (const t of latestEpisode.tiers) {
+    tierIconMap[t.tier] = t.largeIcon;
+  }
+  return tierIconMap;
+}
+
+async function fetchMMR() {
+  const url = `${BASE}/valorant/v3/mmr/${REGION}/${PLATFORM}/${encodeURIComponent(RIOT_NAME)}/${encodeURIComponent(RIOT_TAG)}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error("MMR fetch failed: " + res.status);
+  const json = await res.json();
+  return json.data;
+}
+
+async function fetchRecentMatches() {
+  const url = `${BASE}/valorant/v4/matches/${REGION}/${PLATFORM}/${encodeURIComponent(RIOT_NAME)}/${encodeURIComponent(RIOT_TAG)}?mode=competitive&size=5`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error("Match history fetch failed: " + res.status);
+  const json = await res.json();
+  return json.data || [];
+}
+
+function matchResult(match) {
+  const player = match.players.find(
+    p => p.name.toLowerCase() === RIOT_NAME.toLowerCase() && p.tag.toLowerCase() === RIOT_TAG.toLowerCase()
+  );
+  if (!player) return null;
+  const team = match.teams.find(t => t.team_id === player.team_id);
+  if (!team) return null;
+  return team.won ? "win" : "loss";
+}
+
+function updateSessionRecord(matches) {
+  if (!matches.length) return;
+
+  if (!sessionStarted) {
+    lastSeenMatchId = matches[0].metadata.match_id;
+    sessionStarted = true;
+    return;
+  }
+
+  const newMatches = [];
+  for (const m of matches) {
+    if (m.metadata.match_id === lastSeenMatchId) break;
+    newMatches.push(m);
+  }
+
+  if (newMatches.length) {
+    lastSeenMatchId = matches[0].metadata.match_id;
+    for (const m of newMatches.reverse()) {
+      const result = matchResult(m);
+      if (result === "win") wins++;
+      if (result === "loss") losses++;
+    }
+  }
+}
+
+async function render(mmr) {
+  const icons = await loadTierIcons();
+  const tier = mmr.current?.tier;
+  const rr = mmr.current?.rr ?? 0;
+  const change = mmr.current?.last_change;
+
+  document.getElementById("rank-icon").src = icons[tier?.id] || "";
+  document.getElementById("rank-name").textContent = tier?.name || "Unranked";
+  document.getElementById("wl-wins").textContent = wins;
+  document.getElementById("wl-losses").textContent = losses;
+
+  const rrEl = document.getElementById("rr-value");
+  rrEl.textContent = rr;
+
+  // Flash the RR number when it actually changes
+  if (lastRenderedRR !== null && rr !== lastRenderedRR) {
+    const flashClass = rr > lastRenderedRR ? "flash-win" : "flash-loss";
+    rrEl.classList.add(flashClass);
+    setTimeout(() => rrEl.classList.remove(flashClass), 1600);
+  }
+  lastRenderedRR = rr;
+
+  const deltaEl = document.getElementById("last-match-delta");
+  const glyphEl = document.getElementById("last-match-glyph");
+  if (change === undefined || change === null) {
+    deltaEl.textContent = "--";
+    deltaEl.className = "neutral";
+    glyphEl.textContent = "—";
+    glyphEl.className = "neutral";
+  } else if (change > 0) {
+    deltaEl.textContent = `+${change} RR`;
+    deltaEl.className = "win";
+    glyphEl.textContent = "▲";
+    glyphEl.className = "win";
+  } else if (change < 0) {
+    deltaEl.textContent = `${change} RR`;
+    deltaEl.className = "loss";
+    glyphEl.textContent = "▼";
+    glyphEl.className = "loss";
+  } else {
+    deltaEl.textContent = "0 RR";
+    deltaEl.className = "neutral";
+    glyphEl.textContent = "—";
+    glyphEl.className = "neutral";
+  }
+}
+
+async function refresh() {
+  try {
+    const [mmr, matches] = await Promise.all([fetchMMR(), fetchRecentMatches()]);
+    updateSessionRecord(matches);
+    await render(mmr);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("rank-name").textContent = "Error — check config";
+  }
+}
+
+refresh();
+setInterval(refresh, POLL_SECONDS * 1000);
+</script>
+
+</body>
+</html>
